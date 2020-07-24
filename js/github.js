@@ -1,4 +1,4 @@
-const org = 'dabbralg';
+const org = 'dabralg';
 const repo = 'dabral';
 const branch = 'master';
 
