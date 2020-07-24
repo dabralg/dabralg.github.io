@@ -1,3 +1,7 @@
+const org = 'dabbralg';
+const repo = 'dabral';
+const branch = 'master';
+
 function onSubmit(form) {
   // 1
   const login = form.username || form.querySelector('#login').value;
