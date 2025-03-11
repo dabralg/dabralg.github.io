@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OI Watcher</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial;
+            font-size: 15px;
+            font-weight: 500;
+            color: #3b3b3b;
+            -webkit-font-smoothing: antialiased;
+            font-smoothing: antialiased;
+            background-color: #e2e2e2;
+        }
+
+        table th {
+            position: -webkit-sticky;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: darkgreen;
+            color: #f1f1f1;
+            font-size: 16px;
+        }
+
+        pre {
+            font-size: initial;
+        }
+
+        th,
+        td {
+            padding: 6px;
+            text-align: right;
+        }
+
+        tr:nth-child(odd) {
+            background-color: #f9f9f9;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f1f1f1;
+        }
+
+        .center {
+            margin: auto;
+            padding: 10px;
+        }
+
+        .progress {
+            position: relative;
+            color: rgba(0, 0, 0, 0);
+        }
+
+        .progress::after {
+            content: "";
+            position: absolute;
+            top: 20%;
+            right: 0;
+            width: var(--progress,100%);
+            height: 60%;
+            border-radius: 7px 0 0 7px;
+            background-color: var(--color,green);
+            opacity: .7;
+        }
+
+        #controls {
+            text-align: center;
+        }
+
+        .loader {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+
+            border: 16px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 16px solid #3498db;
+            width: 100px;
+            height: 100px;
+            -webkit-animation: spin 2s linear infinite;
+            /* Safari */
+            animation: spin 2s linear infinite;
+        }
+
+        /* Safari */
+        @-webkit-keyframes spin {
+            0% {
+                -webkit-transform: rotate(0deg);
+            }
+
+            100% {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <script>
+        const on_doc_ready = async (callback) => {
+            // see if DOM is already available
+            if (document.readyState === "complete" || document.readyState === "interactive") {
+                // call on next available tick
+                setTimeout(callback, 1);
+            } else {
+                document.addEventListener("DOMContentLoaded", callback);
+            }
+        };
+
+        const set_busy = (yes) => {
+            const busy = document.getElementById("busy");
+            busy.style.display = yes ? "block" : "none";
+            const controls = document.getElementById("controls");
+            controls.style.display = !yes ? "block" : "none";
+        };
+
+        const print = (message, append = false) => {
+            const output = document.getElementById("output");
+            output.innerText = append ? output.innerText + "\n" + message : message;
+        };
+
+        const fetch_candles = async (symbol, params = "interval=1d&range=20d") => {
+            const api = "https://script.google.com/macros/s/AKfycbyGWkDfkewLZGHoO1zW15IaF3d8a1eyIQ-OR-rK0ddWys5NoMozdMm7wcGk_xhLUtN1dA/exec";
+            return await fetch(api,
+                {
+                    method: "POST",
+                    body: JSON.stringify({ symbol: symbol, params: params }),
+                }
+            ).then(res => res.json());
+        };
+
+        on_doc_ready(async () => {
+            const params = Object.assign({ index: "nifty" }, Object.fromEntries(new URLSearchParams(window.location.search)));
+            const api = "https://script.google.com/macros/s/AKfycbxVcqyjJMS-Rn017p3_f7xUONwINVvNjL_glqXyXrRkc_ukbJbCchdbN0RMm8SNhxHZ/exec";
+            const expiry = document.getElementById('expiry');
+            const pause = document.getElementById('pause');
+            const table = document.getElementById('table');
+
+            const round = (num, dec) => (Math.round(num * 10 ** dec) / 10 ** dec).toFixed(dec).replace(/(\d)(?=(\d{3})+\.)/g, '$1,');
+            const buildup = (option) => ["Long Buildup", "Short Covering", "Short Buildup", "Long Unwinding"][(option['p_chng'] < 0) * 2 + (option['oichng'] < 0) * 1];
+            const stylize = (table, atm) => {
+                const rows = table.getElementsByTagName('tbody').item(0).getElementsByTagName('tr');
+                const colors = {
+                    "Long Buildup": "green",
+                    "Short Covering": "green",
+                    "Short Buildup": "red",
+                    "Long Unwinding": "red"
+                };
+
+                const mpain = Math.max(...Array.from(rows).map(row => parseFloat(row.getElementsByTagName('td')[8].innerText)));
+
+                for (const row of rows) {
+                    const cells = row.getElementsByTagName('td');
+                    const strike = parseInt(row.getElementsByTagName('td')[3].innerText);
+                    if (strike === atm) {
+                        for (let i = 1; i <= 5; i++) {
+                            cells[i].style.backgroundColor = '#ADD8E699';
+                        }
+                    } else if (strike < atm) {
+                        for (let i = 1; i <= 2; i++) {
+                            cells[i].style.backgroundColor = '#FFFFE099';
+                        }
+                    } else {
+                        for (let i = 4; i <= 5; i++) {
+                            cells[i].style.backgroundColor = '#FFFFE099';
+                        }
+                    }
+                    cells[3].style.backgroundColor = 'goldenrod';
+                    cells[0].style.color = '#eee';
+                    cells[6].style.color = '#eee';
+                    cells[0].style.backgroundColor = colors[cells[0].innerText];
+                    cells[6].style.backgroundColor = colors[cells[6].innerText];
+
+                    {
+                        const progress = parseFloat(cells[7].innerText);
+                        cells[7].style.setProperty('--progress', Math.abs(progress)+"%");
+                        cells[7].style.setProperty('--color', progress < 0 ? 'red' : 'green');
+                        cells[7].classList.add("progress");
+                    }
+
+                    {
+                        const progress = (parseFloat(cells[8].innerText) * 100 / mpain);
+                        cells[8].style.setProperty('--progress', progress+"%");
+                        cells[8].style.setProperty('--color', 'blue');
+                        cells[8].classList.add("progress");
+                    }
+                }
+            };
+
+            set_busy(true);
+
+            // Fetch the expiry dates
+            {
+                print(`Fetching expiry dates for ${params.index}...`);
+                const expiries = await fetch(api).then(res => res.json());
+                const filtered = expiries.filter(item => params.index !== "banknifty" || item.exptype === "M");
+                filtered.map(item => expiry.appendChild(new Option(item.expdate + " " + item.exptype, item.expdatej)).cloneNode(true));
+                expiry.selectedIndex = filtered.findIndex(item => item.exptype === "M");
+            }
+
+            // Fetch the option chain
+            const fetch_option_chain = async (expiry) => {
+                return await fetch(api,
+                    {
+                        method: "POST",
+                        body: JSON.stringify(Object.assign(params, { expiry: expiry })),
+                    }
+                ).then(res => res.json());
+            };
+
+            // Refresh the option chain
+            const refresh = async () => {
+                const response = await fetch_option_chain(parseInt(expiry.value));
+                const stamp = new Date().toLocaleString();
+
+                const oc = response['data']['oc'];
+                const chain = Object.keys(oc).map(strike => [
+                    buildup(oc[strike]['ce']),
+                    oc[strike]['ce']['oichng'],
+                    oc[strike]['ce']['p_chng'],
+                    round(oc[strike]['ce']['optgeeks']['delta'], 2),
+                    round(oc[strike]['ce']['ltp'], 2),
+                    Math.floor(parseFloat(strike)),
+                    round(oc[strike]['pe']['ltp'], 2),
+                    round(oc[strike]['pe']['optgeeks']['delta'], 2),
+                    oc[strike]['pe']['p_chng'],
+                    oc[strike]['pe']['oichng'],
+                    buildup(oc[strike]['pe']),
+                    oc[strike]['pe']['OI'] - oc[strike]['ce']['OI'],
+                    oc[strike]['mploss']
+                ]);
+                chain.sort((a, b) => a[5] - b[5]);
+                const pcr = Math.max(...chain.map(row => Math.abs(row[11])));
+                const pain = Math.max(...chain.map(row => row[12]));
+                chain.forEach(row => {
+                    row[11] = round(row[11] * 100 / pcr, 2);
+                    row[12] = round(row[12] * 100 / pain, 2);
+                });
+
+                const strike_gap = params.index === "banknifty" ? 100 : 50;
+                const count = 15;
+                const atm = Math.floor((response['data']['sltp'] + strike_gap / 2) / strike_gap) * strike_gap;
+                const low = atm - count * strike_gap;
+                const high = atm + count * strike_gap;
+                const filtered = chain.filter(row => row[5] >= low && row[5] <= high).map(row => [row[0], row[3], row[4], row[5], row[6], row[7], row[10], row[11], row[12]]);
+                const columns = [["ce.oiBuildup", "ce.oiChange", "ce.pChange", "ce.delta", "ce.price", "strike", "pe.price", "pe.delta", "pe.pChange", "pe.oiChange", "pe.oiBuildup", "pcr", "pain"]].map(row => [row[0], row[3], row[4], row[5], row[6], row[7], row[10], row[11], row[12]])[0];
+
+                table.innerHTML =
+                    "<thead><tr>" + columns.reduce((header, column) => header + "<th>" + column + "</th>", "") + "</tr></thead>" +
+                    "<tbody>" + filtered.reduce((table, row) => {
+                        return table + "<tr>" + row.reduce((row, cell) => { return row + "<td>" + cell + "</td>" }, "") + "</tr>";
+                    }, "") + "</tbody>";
+                stylize(table, atm);
+                const content = stamp + "\n" + params.index.toUpperCase() + " [" + round(response['data']['sltp'], 2) + "] " + expiry[expiry.selectedIndex].text;
+                print(content);
+                set_busy(false);
+            };
+
+            const suspend = () => clearInterval(window.updater);
+            const resume = () => window.updater = setInterval(refresh, 30000);
+            pause.addEventListener("click", async () => {
+                pause.value = pause.value === "Pause" ? "Resume" : "Pause";
+                pause.value === "Pause" ? resume() : suspend();
+            });
+            print("Fetching option chain for " + expiry[expiry.selectedIndex].text + "...", true);
+            refresh();
+            resume();
+            expiry.addEventListener("change", async () => {
+                suspend();
+                print("Fetching option chain for " + expiry[expiry.selectedIndex].text + "...", true);
+                refresh();
+                resume();
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <pre id="output"></pre>
+    <div id="controls">
+        <select id="expiry">
+        </select>
+        <input type="submit" id="pause" value="Pause" />
+    </div>
+    <div id="busy" class="loader center"></div>
+    <table id="table" class="center"></table>
+</body>
+
+</html>
