@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -13,7 +12,7 @@
             font-weight: 500;
             color: #3b3b3b;
             -webkit-font-smoothing: antialiased;
-            font-smoothing: antialiased;
+            font-smooth: always;
             background-color: #e2e2e2;
         }
 
@@ -60,10 +59,10 @@
             position: absolute;
             top: 20%;
             right: 0;
-            width: var(--progress,100%);
+            width: var(--progress, 100%);
             height: 60%;
             border-radius: 7px 0 0 7px;
-            background-color: var(--color,green);
+            background-color: var(--color, green);
             opacity: .7;
         }
 
@@ -186,14 +185,14 @@
 
                     {
                         const progress = parseFloat(cells[7].innerText);
-                        cells[7].style.setProperty('--progress', Math.abs(progress)+"%");
+                        cells[7].style.setProperty('--progress', Math.abs(progress) + "%");
                         cells[7].style.setProperty('--color', progress < 0 ? 'red' : 'green');
                         cells[7].classList.add("progress");
                     }
 
                     {
                         const progress = (parseFloat(cells[8].innerText) * 100 / mpain);
-                        cells[8].style.setProperty('--progress', progress+"%");
+                        cells[8].style.setProperty('--progress', progress + "%");
                         cells[8].style.setProperty('--color', 'blue');
                         cells[8].classList.add("progress");
                     }
@@ -227,6 +226,35 @@
                 const stamp = new Date().toLocaleString();
 
                 const oc = response['data']['oc'];
+                /*{
+                    const evaluate = (strikes, delta, strike) => {
+                        delta = Math.round(Math.abs(delta * 1000));
+                        if ("0.15" in strikes) {
+                            if (strikes["0.15"][0] > Math.abs(delta - 150))
+                                strikes["0.15"] = [Math.abs(delta - 150), strike];
+                        } else {
+                            strikes["0.15"] = [Math.abs(delta - 150), strike];
+                        }
+                        if ("0.3" in strikes) {
+                            if (strikes["0.3"][0] > Math.abs(delta - 300))
+                                strikes["0.3"] = [Math.abs(delta - 300), strike];
+                        } else {
+                            strikes["0.3"] = [Math.abs(delta - 300), strike];
+                        }
+                        if ("0.9" in strikes) {
+                            if (strikes["0.9"][0] > Math.abs(delta - 900))
+                                strikes["0.9"] = [Math.abs(delta - 900), strike];
+                        } else {
+                            strikes["0.9"] = [Math.abs(delta - 900), strike];
+                        }
+                    };
+                    const [ce_strikes, pe_strikes] = [{}, {}];
+                    Object.keys(oc).forEach(strike => {
+                        evaluate(ce_strikes, oc[strike]['ce']['optgeeks']['delta'], strike);
+                        evaluate(pe_strikes, oc[strike]['pe']['optgeeks']['delta'], strike);
+                    });
+                    console.log(ce_strikes, pe_strikes);
+                }*/
                 const chain = Object.keys(oc).map(strike => [
                     buildup(oc[strike]['ce']),
                     oc[strike]['ce']['oichng'],
@@ -240,7 +268,8 @@
                     oc[strike]['pe']['oichng'],
                     buildup(oc[strike]['pe']),
                     oc[strike]['pe']['OI'] - oc[strike]['ce']['OI'],
-                    oc[strike]['mploss']
+                    oc[strike]['mploss'],
+                    (oc[strike]['pe']['OI'] + oc[strike]['ce']['OI']) > 0
                 ]);
                 chain.sort((a, b) => a[5] - b[5]);
                 const pcr = Math.max(...chain.map(row => Math.abs(row[11])));
@@ -250,13 +279,17 @@
                     row[12] = round(row[12] * 100 / pain, 2);
                 });
 
-                const strike_gap = params.index === "banknifty" ? 100 : 50;
-                const count = 15;
-                const atm = Math.floor((response['data']['sltp'] + strike_gap / 2) / strike_gap) * strike_gap;
-                const low = atm - count * strike_gap;
-                const high = atm + count * strike_gap;
-                const filtered = chain.filter(row => row[5] >= low && row[5] <= high).map(row => [row[0], row[3], row[4], row[5], row[6], row[7], row[10], row[11], row[12]]);
                 const columns = [["ce.oiBuildup", "ce.oiChange", "ce.pChange", "ce.delta", "ce.price", "strike", "pe.price", "pe.delta", "pe.pChange", "pe.oiChange", "pe.oiBuildup", "pcr", "pain"]].map(row => [row[0], row[3], row[4], row[5], row[6], row[7], row[10], row[11], row[12]])[0];
+                const [filtered, atm] = (() => {
+                    const strike_gap = params.index === "banknifty" ? 100 : 50;
+                    const atm = Math.floor((response['data']['sltp'] + strike_gap / 2) / strike_gap) * strike_gap;
+
+                    const subchain = chain.filter(row => row[13]);
+                    const count = 20;
+                    const low = atm - count * strike_gap;
+                    const high = atm + count * strike_gap;
+                    return [subchain.filter(row => row[5] >= low && row[5] <= high).map(row => [row[0], row[3], row[4], row[5], row[6], row[7], row[10], row[11], row[12]]), atm];
+                })();
 
                 table.innerHTML =
                     "<thead><tr>" + columns.reduce((header, column) => header + "<th>" + column + "</th>", "") + "</tr></thead>" +
